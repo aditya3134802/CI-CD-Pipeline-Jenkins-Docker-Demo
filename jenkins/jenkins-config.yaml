@@ -1,0 +1,146 @@
+jenkins:
+  systemMessage: "Jenkins configured automatically for CI/CD Pipeline Demo"
+  numExecutors: 2
+  scmCheckoutRetryCount: 3
+  
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  
+  remotingSecurity:
+    enabled: true
+  
+  nodes:
+    - permanent:
+        name: "agent1"
+        remoteFS: "/home/jenkins"
+        labelString: "docker linux"
+        numExecutors: 2
+        mode: NORMAL
+        launcher:
+          jnlp:
+            workDirSettings:
+              disabled: false
+              failIfWorkDirIsMissing: false
+              internalDir: "remoting"
+  
+  clouds:
+    - docker:
+        name: "docker"
+        dockerApi:
+          dockerHost:
+            uri: "unix:///var/run/docker.sock"
+        templates:
+          - labelString: "docker-agent"
+            dockerTemplateBase:
+              image: "jenkins/agent:latest"
+            remoteFs: "/home/jenkins/agent"
+            connector:
+              attach:
+                user: "jenkins"
+            instanceCapStr: "10"
+            retentionStrategy:
+              idle:
+                idleMinutes: 10
+  
+  slaveAgentPort: 50000
+  agentProtocols:
+    - "JNLP4-connect"
+    - "Ping"
+  
+jobs:
+  - script: >
+      pipelineJob('CI-CD-Pipeline-Demo') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/aditya3134802/CI-CD-Pipeline-Jenkins-Docker-Demo.git')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+        triggers {
+          githubPush()
+        }
+      }
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "dockerhub-credentials"
+              username: "${DOCKER_USERNAME}"
+              password: "${DOCKER_PASSWORD}"
+              description: "Docker Hub Credentials"
+          - string:
+              scope: GLOBAL
+              id: "deployment-token"
+              secret: "${DEPLOYMENT_TOKEN}"
+              description: "Deployment API Token"
+
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+  
+  nodejs:
+    installations:
+      - name: "NodeJS 18"
+        properties:
+          - installSource:
+              installers:
+                - nodeJSInstaller:
+                    id: "18.17.1"
+                    npmPackagesRefreshHours: 72
+
+unclassified:
+  location:
+    url: "http://jenkins:8080/"
+  
+  githubpluginconfig:
+    configs:
+      - name: "GitHub"
+        apiUrl: "https://api.github.com"
+        credentialsId: "github-token"
+  
+  email-ext:
+    mailAccount:
+      smtpHost: "smtp.example.com"
+      smtpPort: "587"
+      usernameSecret: "smtp-username"
+      passwordSecret: "smtp-password"
+      charset: "UTF-8"
+      
+  globalLibraries:
+    libraries:
+      - name: "ci-cd-library"
+        defaultVersion: "main"
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                remote: "https://github.com/example/jenkins-shared-library.git"
+
+security:
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: false
+  
+  apiToken:
+    creationOfLegacyTokenEnabled: false
+    tokenGenerationOnCreationEnabled: false
+    usageStatisticsEnabled: true
